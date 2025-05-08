@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { verifyOtp } from "@/api/auth";
 
 const OtpVerification = () => {
     const navigate = useNavigate();
-    const { phoneNumber, verifyOtp, login } = useAuth();
+    const { phoneNumber, login } = useAuth();
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [timer, setTimer] = useState(30);
     const [isVerifying, setIsVerifying] = useState(false);
@@ -18,6 +19,7 @@ const OtpVerification = () => {
     useEffect(() => {
         if (!phoneNumber) {
             navigate("/login");
+
         }
     }, [phoneNumber, navigate]);
 
@@ -53,19 +55,22 @@ const OtpVerification = () => {
     };
 
     const handleVerifyOtp = async () => {
+        const sessionId = localStorage.getItem("sessionid");
         const otpValue = otp.join("");
-
         if (otpValue.length !== 6) {
             toast.error("Please enter a valid 6-digit OTP");
             return;
         }
-
         setIsVerifying(true);
 
         try {
             const result = await verifyOtp(otpValue);
 
-            if (result.success) {
+
+            if (result.success && result.user.refreshToken) {
+                // Store the refresh token in local storage or context
+
+                localStorage.setItem("refreshToken", result.user.refreshToken);
                 toast.success("OTP verified successfully");
 
                 // Create a user object

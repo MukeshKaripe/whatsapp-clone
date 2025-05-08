@@ -8,122 +8,94 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 import { Phone, Eye, EyeOff } from "lucide-react";
+import { sendOtp } from "@/api/auth";
 
 const Login = () => {
     const navigate = useNavigate();
     const { setPhoneNumber } = useAuth();
     const [phone, setPhone] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
     const [activeTab, setActiveTab] = useState("login");
-
+    const phonePattern = /^[6-9]\d{9}$/;
+    const [error, setError] = useState('');
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         // Only allow numbers
         const value = e.target.value.replace(/\D/g, "");
         setPhone(value);
+        if (value === '' || phonePattern.test(value)) {
+            setError('');
+        } else {
+            setError('Enter a valid 10-digit phone number starting with 6-9');
+        }
     };
 
-    const handleLoginSubmit = (e: React.FormEvent) => {
+    const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!phone) {
             toast.error("Please enter your phone number or email");
             return;
         }
-
-        // Store phone in context for OTP verification
-        setPhoneNumber(phone);
-        toast.success("OTP has been sent to your phone");
-        navigate("/otp-verification");
-    };
-
-    const handleOtpRequest = () => {
-        if (!phone) {
-            toast.error("Please enter your phone number");
-            return;
+        try {
+            const result = await sendOtp(phone);  // Ensure the API expects just the phone number
+            setPhoneNumber(phone); // Set phone before redirecting
+            toast.success(result?.message || "OTP has been sent to your phone");
+            // sessionStorage.setItem("sessionid", result.headers["sessionid"]);
+            navigate("/otp-verification");
+        } catch (err: any) {
+            console.error('OTP sending failed:', err);
+            toast.error(err?.message || 'Failed to send OTP');
         }
-
         // Store phone in context for OTP verification
         setPhoneNumber(phone);
-
-        toast.success("OTP has been sent to your phone");
-
-        navigate("/otp-verification");
     };
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 p-4 min-w-full">
             <Card className="w-full max-w-md">
                 <CardHeader>
-                    <Tabs defaultValue="login" onValueChange={setActiveTab}>
+                    {/* <Tabs defaultValue="login" onValueChange={setActiveTab}>
                         <TabsList className="grid w-full grid-cols-2 mb-4">
                             <TabsTrigger value="login">LOGIN</TabsTrigger>
                             <TabsTrigger value="register">REGISTER</TabsTrigger>
                         </TabsList>
-                    </Tabs>
+                    </Tabs> */}
+                    <h1 className="font-bold text-2xl text-center
+                    ">Welcome to Whatsapp Clone</h1>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleLoginSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm text-muted-foreground">Enter your mobile number or email id</label>
+                        <div className="space-y-2 relative mb-5">
+                            <div className="flex justify-between">
+                                <label className="text-sm text-muted-foreground">Enter your mobile number</label>
+                            </div>
                             <Input
                                 type="text"
-                                placeholder="Phone or Email"
+                                placeholder="Phone number"
                                 value={phone}
                                 onChange={handlePhoneChange}
+                                onBlur={error ? () => setError('') : undefined}
                             />
+                            {error && <span className="text-red-500 text-[12px] absolute">{error}</span>}
                         </div>
-
-                        {activeTab === "login" && (
-                            <div className="space-y-2 relative">
-                                <div className="flex justify-between">
-                                    <label className="text-sm text-muted-foreground">Enter your password</label>
-                                </div>
-                                <div className="relative">
-                                    <Input
-                                        type={showPassword ? "text" : "password"}
-                                        placeholder="Password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                    >
-                                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                                <div className="text-right">
-                                    <Button
-                                        variant="link"
-                                        className="text-pink-500 p-0 h-auto"
-                                    >
-                                        Forgot Password?
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
 
                         <div className="flex gap-4 pt-2">
                             <Button
                                 type="submit"
-                                className="w-1/2 bg-gradient-to-r from-orange-400 to-pink-500 hover:from-orange-500 hover:to-pink-600"
+                                className="w-full bg-gradient-to-r from-orange-400 to-pink-500 hover:from-orange-500 hover:to-pink-600"
                             >
-                                Login
+                                Login via Password
                             </Button>
-                            <Button
+                            {/* <Button
                                 type="button"
                                 variant="outline"
                                 className="w-1/2 text-pink-500 border-pink-500 hover:bg-pink-50"
                                 onClick={handleOtpRequest}
                             >
                                 Login via OTP
-                            </Button>
+                            </Button> */}
                         </div>
                     </form>
 
-                    <div className="mt-8">
+                    {/* <div className="mt-8">
                         <div className="text-center text-sm">
                             Don't have an account?
                             <Button
@@ -134,12 +106,12 @@ const Login = () => {
                                 Register Now.
                             </Button>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="mt-8">
                         <div className="relative flex items-center justify-center">
                             <hr className="w-full" />
-                            <span className="absolute bg-card px-4 text-muted-foreground text-sm">Social Login</span>
+                            <span className="absolute bg-card px-4 text-muted-foreground text-sm">Social Login Coming Soon</span>
                         </div>
 
                         <div className="mt-6 space-y-3">
