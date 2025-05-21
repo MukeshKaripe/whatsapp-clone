@@ -14,7 +14,6 @@ const Login = () => {
     const navigate = useNavigate();
     const { setPhoneNumber } = useAuth();
     const [phone, setPhone] = useState("");
-    const [activeTab, setActiveTab] = useState("login");
     const phonePattern = /^[6-9]\d{9}$/;
     const [error, setError] = useState('');
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,6 +29,8 @@ const Login = () => {
 
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log("Login form submitted with phone:", phone);
+
         if (!phone) {
             toast.error("Please enter your phone number or email");
             return;
@@ -38,7 +39,6 @@ const Login = () => {
             const result = await sendOtp(phone);  // Ensure the API expects just the phone number
             setPhoneNumber(phone); // Set phone before redirecting
             toast.success(result?.message || "OTP has been sent to your phone");
-            // sessionStorage.setItem("sessionid", result.headers["sessionid"]);
             navigate("/otp-verification");
         } catch (err: any) {
             console.error('OTP sending failed:', err);
@@ -52,12 +52,6 @@ const Login = () => {
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 p-4 min-w-full">
             <Card className="w-full max-w-md">
                 <CardHeader>
-                    {/* <Tabs defaultValue="login" onValueChange={setActiveTab}>
-                        <TabsList className="grid w-full grid-cols-2 mb-4">
-                            <TabsTrigger value="login">LOGIN</TabsTrigger>
-                            <TabsTrigger value="register">REGISTER</TabsTrigger>
-                        </TabsList>
-                    </Tabs> */}
                     <h1 className="font-bold text-2xl text-center
                     ">Welcome to Whatsapp Clone</h1>
                 </CardHeader>

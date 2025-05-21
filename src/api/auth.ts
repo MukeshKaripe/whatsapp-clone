@@ -15,7 +15,7 @@ const API_BASE_URL = import.meta.env.VITE_APP_API_URL;
 export const sendOtp = async (mobile: string): Promise<any> => {
     try {
         const response = await axios.post(`${API_BASE_URL}/api/users/sendotp`, { mobile });
-        console.log(response.data.sessionid, 'response.data.sessionid', response.headers['sessionid']);
+        console.log(response.headers['sessionid']);
 
         // Store session ID in localStorage
         localStorage.setItem("sessionid", response.headers['sessionid']);
@@ -43,7 +43,9 @@ export const verifyOtp = async (otp: string) => {
                 headers: {
                     sessionid: sessionId,
                 },
-            }
+                withCredentials: true,
+            },
+
         );
 
         return {
@@ -59,4 +61,23 @@ export const verifyOtp = async (otp: string) => {
         };
     }
 };
+export const getUserDetails = async () => {
+    try {
 
+        const response = await axios.get(`${API_BASE_URL}/api/users/`, {
+            withCredentials: true,
+        });
+        console.log(response.data, 'response');
+
+        return {
+            success: true,
+            user: response.data.user,
+        };
+    } catch (error: any) {
+        console.error("User fetch failed:", error.response?.data || error.message);
+        return {
+            success: false,
+            message: error.response?.data?.message || "Fetching user failed",
+        };
+    }
+};

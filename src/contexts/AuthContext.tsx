@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getUserDetails } from "../api/auth"; // Adjust path accordingly
 
-// Define types for the user object
 interface User {
     id: string;
     name?: string;
@@ -9,7 +9,6 @@ interface User {
     isNewUser?: boolean;
 }
 
-// Define the context type
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
@@ -19,51 +18,57 @@ interface AuthContextType {
     setupProfile: (name: string, avatarUrl: string) => Promise<void>;
     login: (user: User) => void;
     logout: () => void;
+    loading: boolean;
 }
 
-// Create the context
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Props for the AuthProvider component
 interface AuthProviderProps {
     children: ReactNode;
 }
 
-// AuthProvider component
 export const AuthProvider = ({ children }: AuthProviderProps) => {
     const [user, setUser] = useState<User | null>(null);
     const [phoneNumber, setPhoneNumber] = useState<string>("");
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+    const [loading, setLoading] = useState<boolean>(true);
 
-    // Check if user is already logged in (from localStorage)
     useEffect(() => {
-        const storedUser = localStorage.getItem("whatsapp-user");
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-            setIsAuthenticated(true);
-        }
+        const initAuth = async () => {
+            try {
+                const storedUser = localStorage.getItem("refreshToken");
+                if (storedUser) {
+                    const parsedUser = JSON.parse(storedUser);
+                    setUser(parsedUser);
+                    setIsAuthenticated(true);
+                } else {
+                    const res = await getUserDetails(); // fallback API
+                    if (res.success && res.user) {
+                        setUser(res.user);
+                        setIsAuthenticated(true);
+                        localStorage.setItem("whatsapp-user", JSON.stringify(res.user));
+                    }
+                }
+            } catch (err) {
+                console.error("Auth check failed:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initAuth();
     }, []);
 
-    // Mock OTP verification function
     const verifyOtp = async (otp: string): Promise<{ success: boolean; isNewUser: boolean }> => {
-        // In a real app, this would call an API
         return new Promise((resolve) => {
             setTimeout(() => {
-                // Mock success response
-                if (otp.length === 6) {
-                    // Check if user exists in our system
-                    const isNewUser = !localStorage.getItem(`user-${phoneNumber}`);
-                    resolve({ success: true, isNewUser });
-                } else {
-                    resolve({ success: false, isNewUser: false });
-                }
+                const isNewUser = !localStorage.getItem(`user-${phoneNumber}`);
+                resolve({ success: otp.length === 6, isNewUser });
             }, 1000);
         });
     };
 
-    // Mock profile setup function
     const setupProfile = async (name: string, avatarUrl: string): Promise<void> => {
-        // In a real app, this would call an API
         return new Promise((resolve) => {
             setTimeout(() => {
                 const newUser: User = {
@@ -74,32 +79,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                     isNewUser: false
                 };
 
-                // Store user data
                 localStorage.setItem(`user-${phoneNumber}`, JSON.stringify(newUser));
                 setUser(newUser);
                 setIsAuthenticated(true);
-                localStorage.setItem("whatsapp-user", JSON.stringify(newUser));
-
                 resolve();
             }, 1000);
         });
     };
 
-    // Login function
     const login = (userData: User) => {
         setUser(userData);
         setIsAuthenticated(true);
-        localStorage.setItem("whatsapp-user", JSON.stringify(userData));
     };
 
-    // Logout function
     const logout = () => {
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem("whatsapp-user");
+        localStorage.removeItem("refreshToken"); // optional: also call logout API
     };
 
-    // Context value
     const value: AuthContextType = {
         user,
         isAuthenticated,
@@ -108,16 +106,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         verifyOtp,
         setupProfile,
         login,
-        logout
+        logout,
+        loading
     };
 
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return (
+        <AuthContext.Provider value={value}>
+            {!loading && children}
+        </AuthContext.Provider>
+    );
 };
 
-// Hook to use the auth context
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (context === undefined) {
+    if (!context) {
         throw new Error("useAuth must be used within an AuthProvider");
     }
     return context;
