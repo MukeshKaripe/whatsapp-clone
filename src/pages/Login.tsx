@@ -26,27 +26,59 @@ const Login = () => {
             setError('Enter a valid 10-digit phone number starting with 6-9');
         }
     };
-
     const handleLoginSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        console.log("Login form submitted with phone:", phone);
 
         if (!phone) {
-            toast.error("Please enter your phone number or email");
+            toast.error("Please enter your phone number");
             return;
         }
+
+        console.log("Sending OTP to:", phone);
+
         try {
-            const result = await sendOtp(phone);  // Ensure the API expects just the phone number
-            setPhoneNumber(phone); // Set phone before redirecting
-            toast.success(result?.message || "OTP has been sent to your phone");
+            const result = await sendOtp(phone);
+            console.log("✅ Full API Response:", result);
+
+            // Set phone number in context
+            setPhoneNumber(phone);
+
+            // Show success message with OTP (for development)
+            if (result?.success) {
+                const message = result?.message || "OTP has been sent to your phone";
+                // 🔥 For development - show OTP in toast
+                const otpMessage = result?.otp ? `${message} (OTP: ${result.otp})` : message;
+                toast.success(otpMessage);
+            } else {
+                toast.error(result?.message || "Failed to send OTP");
+                return; // Don't navigate if not successful
+            }
+
+            // Navigate to OTP verification
+            console.log("Navigating to OTP verification...");
             navigate("/otp-verification");
+
         } catch (err: any) {
-            console.error('OTP sending failed:', err);
-            toast.error(err?.message || 'Failed to send OTP');
+            console.error("❌ OTP Error:", err);
+
+            // Handle different error types
+            let errorMessage = "Failed to send OTP";
+
+            if (typeof err === 'string') {
+                errorMessage = err;
+            } else if (err?.message) {
+                errorMessage = err.message;
+            } else if (err?.response?.data?.message) {
+                errorMessage = err.response.data.message;
+            }
+
+            toast.error(errorMessage);
+
+            // Don't navigate on error
+            return;
         }
-        // Store phone in context for OTP verification
-        setPhoneNumber(phone);
     };
+
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 p-4 min-w-full">
@@ -76,7 +108,7 @@ const Login = () => {
                                 type="submit"
                                 className="w-full bg-gradient-to-r from-orange-400 to-pink-500 hover:from-orange-500 hover:to-pink-600"
                             >
-                                Login via Password
+                                Login via OTP
                             </Button>
                             {/* <Button
                                 type="button"

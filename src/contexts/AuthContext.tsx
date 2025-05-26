@@ -1,12 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getUserDetails } from "../api/auth"; // Adjust path accordingly
+import { getUserDetails, verifyOtpApi, logoutApi, updateProfile } from "../api/auth";
 
 interface User {
-    id: string;
+    _id: string;
     name?: string;
-    phone: string;
-    avatarUrl?: string;
-    isNewUser?: boolean;
+    mobile: string;
+    profile?: string;
+    about?: string;
+    avatarUrl?: string; // Added for profile image URL
 }
 
 interface AuthContextType {
@@ -14,105 +15,175 @@ interface AuthContextType {
     isAuthenticated: boolean;
     phoneNumber: string;
     setPhoneNumber: (phone: string) => void;
-    verifyOtp: (otp: string) => Promise<{ success: boolean; isNewUser: boolean }>;
-    setupProfile: (name: string, avatarUrl: string) => Promise<void>;
+    verifyOtp: (otp: string) => Promise<{ success: boolean; user?: User; message?: string }>;
     login: (user: User) => void;
     logout: () => void;
     loading: boolean;
+    hasSessionId: boolean;
+    updateUserProfile: (formData: FormData) => Promise<boolean>; // Added this line
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-    children: ReactNode;
-}
-
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [phoneNumber, setPhoneNumber] = useState<string>("");
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
+    const [hasSessionId, setHasSessionId] = useState<boolean>(false);
 
     useEffect(() => {
-        const initAuth = async () => {
+        const checkAuth = async () => {
             try {
-                const storedUser = localStorage.getItem("refreshToken");
-                if (storedUser) {
-                    const parsedUser = JSON.parse(storedUser);
-                    setUser(parsedUser);
+                console.log("🔍 Checking authentication status...");
+
+                // Check if sessionId exists (user in OTP flow)
+                const sessionId = localStorage.getItem("sessionid");
+                setHasSessionId(!!sessionId);
+
+                // Check if user is authenticated via cookies
+                const res = await getUserDetails();
+                console.log("✅ Auth check response:", res);
+
+                if (res.success && res.user) {
+                    setUser(res.user);
                     setIsAuthenticated(true);
+                    console.log("✅ User authenticated:", res.user);
                 } else {
-                    const res = await getUserDetails(); // fallback API
-                    if (res.success && res.user) {
-                        setUser(res.user);
-                        setIsAuthenticated(true);
-                        localStorage.setItem("whatsapp-user", JSON.stringify(res.user));
-                    }
+                    console.log("❌ User not authenticated - invalid response");
+                    setIsAuthenticated(false);
+                    setUser(null);
                 }
-            } catch (err) {
-                console.error("Auth check failed:", err);
+            } catch (err: any) {
+                console.log("❌ User not authenticated - error:", err);
+                setIsAuthenticated(false);
+                setUser(null);
             } finally {
                 setLoading(false);
+                console.log("✅ Auth check completed");
             }
         };
 
-        initAuth();
+        checkAuth();
     }, []);
 
-    const verifyOtp = async (otp: string): Promise<{ success: boolean; isNewUser: boolean }> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const isNewUser = !localStorage.getItem(`user-${phoneNumber}`);
-                resolve({ success: otp.length === 6, isNewUser });
-            }, 1000);
-        });
-    };
+    const verifyOtp = async (otp: string): Promise<{ success: boolean; user?: User; message?: string }> => {
+        try {
+            console.log("🔐 Verifying OTP for phone:", phoneNumber);
 
-    const setupProfile = async (name: string, avatarUrl: string): Promise<void> => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const newUser: User = {
-                    id: "user-" + Date.now(),
-                    name,
-                    phone: phoneNumber,
-                    avatarUrl,
-                    isNewUser: false
-                };
+            const result = await verifyOtpApi(otp);
+            console.log("✅ OTP verification result:", result);
 
-                localStorage.setItem(`user-${phoneNumber}`, JSON.stringify(newUser));
-                setUser(newUser);
+            if (result.success && result.user) {
+                setUser(result.user);
                 setIsAuthenticated(true);
-                resolve();
-            }, 1000);
-        });
+                setHasSessionId(false);
+                console.log("✅ OTP verified, user logged in:", result.user);
+                return { success: true, user: result.user };
+            }
+
+            console.log("❌ OTP verification failed:", result.message);
+            return { success: false, message: result.message };
+        } catch (error: any) {
+            console.error("❌ OTP verification failed:", error);
+            return {
+                success: false,
+                message: typeof error === 'string' ? error : "OTP verification failed"
+            };
+        }
     };
 
     const login = (userData: User) => {
+        console.log("👤 Manual login:", userData);
         setUser(userData);
         setIsAuthenticated(true);
+        setHasSessionId(false);
     };
 
-    const logout = () => {
-        setUser(null);
-        setIsAuthenticated(false);
-        localStorage.removeItem("refreshToken"); // optional: also call logout API
+    const logout = async () => {
+        try {
+            console.log("🚪 Logging out...");
+            await logoutApi();
+            console.log("✅ Logout API called successfully");
+        } catch (err) {
+            console.error("❌ Logout API error:", err);
+        } finally {
+            setUser(null);
+            setIsAuthenticated(false);
+            setHasSessionId(false);
+            localStorage.removeItem("sessionid");
+            console.log("✅ User logged out locally");
+        }
     };
 
-    const value: AuthContextType = {
-        user,
-        isAuthenticated,
-        phoneNumber,
-        setPhoneNumber,
-        verifyOtp,
-        setupProfile,
-        login,
-        logout,
-        loading
+    // Profile update function - now properly included in context
+    const updateUserProfile = async (formData: FormData): Promise<boolean> => {
+        try {
+            if (!user?._id) {
+                throw new Error('User ID not found');
+            }
+
+            console.log("🔄 Updating user profile...");
+            const result = await updateProfile(user._id, formData);
+
+            if (result.success && result.user) {
+                // Update user in context with new data
+                const updatedUser = {
+                    ...user,
+                    ...result.user,
+                    // Ensure we keep the existing data and add new data
+                    avatarUrl: result.user.profile || result.user.avatarUrl || user.avatarUrl
+                };
+
+                setUser(updatedUser);
+                console.log("✅ Profile updated successfully:", updatedUser);
+
+                // Update localStorage if token exists
+                const token = localStorage.getItem('token');
+                if (token) {
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                }
+
+                return true;
+            }
+
+            console.log("❌ Profile update failed:", result);
+            return false;
+        } catch (error: any) {
+            console.error('❌ Profile update failed:', error);
+            throw error;
+        }
     };
+
+    // Update hasSessionId when phoneNumber changes
+    useEffect(() => {
+        const sessionId = localStorage.getItem("sessionid");
+        setHasSessionId(!!sessionId);
+    }, [phoneNumber]);
+
+    // Loading screen
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600">
+                <div className="text-white text-xl">Loading...</div>
+            </div>
+        );
+    }
 
     return (
-        <AuthContext.Provider value={value}>
-            {!loading && children}
+        <AuthContext.Provider value={{
+            user,
+            isAuthenticated,
+            phoneNumber,
+            setPhoneNumber,
+            verifyOtp,
+            login,
+            logout,
+            loading,
+            hasSessionId,
+            updateUserProfile // Added this line to make it available in context
+        }}>
+            {children}
         </AuthContext.Provider>
     );
 };

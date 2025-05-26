@@ -8,13 +8,13 @@ import App from './App';
 import { ThemeProvider } from './components/theme-provider';
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ThemeProvider defaultTheme="system" storageKey="whatsapp-clone-theme">
-      <Provider store={store}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </Provider>
-    </ThemeProvider>
-  </StrictMode>,
+  // <StrictMode>
+  <ThemeProvider defaultTheme="system" storageKey="whatsapp-clone-theme">
+    <Provider store={store}>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </Provider>
+  </ThemeProvider>
+  // </StrictMode>,
 );

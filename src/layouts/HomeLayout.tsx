@@ -16,12 +16,12 @@ const HomeLayout = () => {
     const [showSettings, setShowSettings] = useState(false);
     const currentTab = location.pathname.split('/')[1] || 'chats';
 
-    useEffect(() => {
-        getUserDetails()
-        if (!user) {
-            navigate("/login");
-        }
-    }, [user, navigate]);
+    // useEffect(() => {
+    //     getUserDetails()
+    //     if (!user) {
+    //         navigate("/login");
+    //     }
+    // }, [user, navigate]);
 
     const handleTabChange = (tab: string) => {
         navigate(`/${tab}`);

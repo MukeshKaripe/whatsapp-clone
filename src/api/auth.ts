@@ -26,7 +26,42 @@ export const sendOtp = async (mobile: string): Promise<any> => {
         throw error?.response?.data?.message || "OTP sending failed";
     }
 };
-export const verifyOtp = async (otp: string) => {
+// export const verifyOtp = async (otp: string) => {
+//     try {
+//         const sessionId = localStorage.getItem("sessionid");
+//         if (!sessionId) {
+//             throw new Error("Session ID is missing. Please request a new OTP.");
+//         }
+
+//         const otpArray = otp.split('');
+//         console.log(otpArray, 'otpArray');
+
+//         const response = await axios.post(
+//             `${API_BASE_URL}/api/users/verifyotp`,
+//             { otp: otpArray },
+//             {
+//                 headers: {
+//                     sessionid: sessionId,
+//                 },
+//                 withCredentials: true,
+//             },
+
+//         );
+
+//         return {
+//             success: true,
+//             user: response.data.user,
+//             isNewUser: response.data.user?.isNewUser || false,
+//         };
+//     } catch (error: any) {
+//         console.error("OTP verification failed:", error.response?.data || error.message);
+//         return {
+//             success: false,
+//             message: error.response?.data?.message || "OTP verification failed",
+//         };
+//     }
+// };
+export const verifyOtpApi = async (otp: string) => {
     try {
         const sessionId = localStorage.getItem("sessionid");
         if (!sessionId) {
@@ -44,9 +79,11 @@ export const verifyOtp = async (otp: string) => {
                     sessionid: sessionId,
                 },
                 withCredentials: true,
-            },
-
+            }
         );
+
+        // Clear sessionId after successful verification
+        localStorage.removeItem("sessionid");
 
         return {
             success: true,
@@ -79,5 +116,44 @@ export const getUserDetails = async () => {
             success: false,
             message: error.response?.data?.message || "Fetching user failed",
         };
+    }
+};
+export const logoutApi = async (): Promise<any> => {
+    try {
+        const response = await axios.post(`${API_BASE_URL}/api/users/logout`);
+        return response.data;
+    } catch (error: any) {
+        console.error("Logout error:", error?.response?.data);
+        throw error?.response?.data || error?.message || "Logout failed";
+    }
+};
+
+// Corrected API to use cookies instead of Bearer token
+export const updateProfile = async (userId: string, formData: FormData) => {
+    try {
+        console.log('🔄 Updating profile for user:', userId);
+
+        const response = await fetch(`${API_BASE_URL}/users/updateprofile/${userId}`, {
+            method: 'PUT',
+            credentials: 'include', // This sends cookies automatically
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to update profile');
+        }
+
+        console.log('✅ Profile updated:', data);
+        return {
+            success: true,
+            user: data,
+            message: 'Profile updated successfully'
+        };
+
+    } catch (error: any) {
+        // console.error('❌ Profile update error:', error);
+        throw new Error(error.message || 'Failed to update profile');
     }
 };

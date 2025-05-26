@@ -1,165 +1,216 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { verifyOtp } from "@/api/auth";
 
 const OtpVerification = () => {
     const navigate = useNavigate();
-    const { phoneNumber, login } = useAuth();
+    const { phoneNumber, verifyOtp, resendOtp } = useAuth();
     const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-    const [timer, setTimer] = useState(30);
-    const [isVerifying, setIsVerifying] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
     // Redirect to login if no phone number
-    useEffect(() => {
-        if (!phoneNumber) {
-            navigate("/login");
+    if (!phoneNumber) {
+        navigate("/login");
+        return null;
+    }
 
-        }
-    }, [phoneNumber, navigate]);
-
-    // Timer countdown
+    // Timer effect for resend button
     useEffect(() => {
-        if (timer > 0) {
-            const interval = setInterval(() => {
-                setTimer(prevTimer => prevTimer - 1);
+        let interval: NodeJS.Timeout;
+        if (resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer(prev => prev - 1);
             }, 1000);
-            return () => clearInterval(interval);
         }
-    }, [timer]);
+        return () => clearInterval(interval);
+    }, [resendTimer]);
 
     const handleOtpChange = (index: number, value: string) => {
-        // Only accept digits
-        if (!/^[0-9]*$/.test(value)) return;
+        // Only allow single digit
+        if (value.length > 1) return;
+
+        // Only allow numbers
+        if (value !== "" && !/^\d$/.test(value)) return;
 
         const newOtp = [...otp];
         newOtp[index] = value;
         setOtp(newOtp);
 
-        // Auto-focus next input or blur on last
+        // Auto focus next input
         if (value !== "" && index < 5) {
             inputRefs.current[index + 1]?.focus();
         }
     };
 
-    const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
         // Handle backspace
-        if (e.key === "Backspace" && otp[index] === "" && index > 0) {
-            inputRefs.current[index - 1]?.focus();
+        if (e.key === "Backspace") {
+            if (otp[index] === "" && index > 0) {
+                // If current input is empty, go to previous input
+                inputRefs.current[index - 1]?.focus();
+            } else {
+                // Clear current input
+                const newOtp = [...otp];
+                newOtp[index] = "";
+                setOtp(newOtp);
+            }
         }
     };
 
-    const handleVerifyOtp = async () => {
-        const sessionId = localStorage.getItem("sessionid");
-        const otpValue = otp.join("");
-        if (otpValue.length !== 6) {
+    const handlePaste = (e: React.ClipboardEvent) => {
+        e.preventDefault();
+        const pasteData = e.clipboardData.getData("text");
+        const digits = pasteData.replace(/\D/g, "").slice(0, 6);
+
+        if (digits.length === 6) {
+            const newOtp = digits.split("");
+            setOtp(newOtp);
+            inputRefs.current[5]?.focus();
+        }
+    };
+
+    const handleOtpSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        const otpString = otp.join("");
+        if (otpString.length !== 6) {
             toast.error("Please enter a valid 6-digit OTP");
             return;
         }
-        setIsVerifying(true);
+
+        setLoading(true);
+        console.log("🔐 Verifying OTP:", otpString);
 
         try {
-            const result = await verifyOtp(otpValue);
+            const result = await verifyOtp(otpString);
+            console.log("✅ OTP verification result:", result);
 
+            if (result.success) {
+                toast.success("OTP verified successfully!");
 
-            if (result.success && result.user.refreshToken) {
-                // Store the refresh token in local storage or context
-
-                localStorage.setItem("refreshToken", result.user.refreshToken);
-                toast.success("OTP verified successfully");
-
-                // Create a user object
-                const user = {
-                    id: "temp-id",
-                    phone: phoneNumber,
-                    isNewUser: result.isNewUser,
-                };
-
-                // Login the user
-                login(user);
-
-                // Redirect based on whether user is new or existing
-                if (result.isNewUser) {
+                // Check if user has name/profile - if not, go to profile setup
+                if (!result.user?.name) {
+                    console.log("➡️ User needs profile setup");
                     navigate("/profile-setup");
                 } else {
+                    console.log("➡️ User has profile, going to home");
                     navigate("/");
                 }
             } else {
-                toast.error("Invalid OTP. Please try again");
+                toast.error("Invalid OTP. Please try again.");
+                // Clear OTP inputs on failure
+                setOtp(["", "", "", "", "", ""]);
+                inputRefs.current[0]?.focus();
             }
-        } catch (error) {
-            console.error(error);
-            toast.error("Something went wrong. Please try again");
+        } catch (error: any) {
+            console.error("❌ OTP verification error:", error);
+            toast.error(error?.message || "OTP verification failed");
+            // Clear OTP inputs on error
+            setOtp(["", "", "", "", "", ""]);
+            inputRefs.current[0]?.focus();
         } finally {
-            setIsVerifying(false);
+            setLoading(false);
         }
     };
 
-    const handleResendOtp = () => {
-        if (timer > 0) return;
+    const handleResendOtp = async () => {
+        if (resendTimer > 0) return;
 
-        setTimer(30);
-        toast.success("A new OTP has been sent to your phone");
+        setResendLoading(true);
 
+        try {
+            const success = await resendOtp();
+
+            if (success) {
+                toast.success("OTP resent successfully!");
+                setResendTimer(10); // 10 second cooldown
+                // Clear current OTP
+                setOtp(["", "", "", "", "", ""]);
+                inputRefs.current[0]?.focus();
+            } else {
+                toast.error("Failed to resend OTP. Please try again.");
+            }
+        } catch (error) {
+            toast.error("Failed to resend OTP. Please try again.");
+        } finally {
+            setResendLoading(false);
+        }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 p-4 min-w-full">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 p-4">
             <Card className="w-full max-w-md">
-                <CardHeader className="text-center">
-                    <CardTitle className="text-2xl">OTP Verification</CardTitle>
+                <CardHeader>
+                    <CardTitle className="text-2xl text-center">Verify OTP</CardTitle>
+                    <p className="text-center text-muted-foreground">
+                        Enter the 6-digit code sent to {phoneNumber}
+                    </p>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-6">
-                        <div className="text-center space-y-2">
-                            <p className="text-sm text-muted-foreground">
-                                We've sent a verification code to
-                            </p>
-                            <p className="font-medium">{phoneNumber}</p>
-                        </div>
-
+                    <form onSubmit={handleOtpSubmit} className="space-y-6">
+                        {/* OTP Input Boxes */}
                         <div className="flex justify-center gap-2">
                             {otp.map((digit, index) => (
                                 <Input
                                     key={index}
-                                    type="text"
-                                    maxLength={1}
-                                    value={digit}
                                     ref={(el) => (inputRefs.current[index] = el)}
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={digit}
                                     onChange={(e) => handleOtpChange(index, e.target.value)}
                                     onKeyDown={(e) => handleKeyDown(index, e)}
-                                    className="w-12 h-12 text-center text-xl"
+                                    onPaste={handlePaste}
+                                    className="w-12 h-12 text-center text-lg font-semibold border-2"
+                                    maxLength={1}
+                                    disabled={loading}
+                                    autoFocus={index === 0}
                                 />
                             ))}
                         </div>
 
                         <Button
-                            onClick={handleVerifyOtp}
-                            disabled={isVerifying || otp.join("").length !== 6}
-                            className="w-full bg-gradient-to-r from-green-400 to-teal-500 hover:from-green-500 hover:to-teal-600"
+                            type="submit"
+                            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+                            disabled={loading || otp.join("").length !== 6}
                         >
-                            {isVerifying ? "Verifying..." : "Verify OTP"}
+                            {loading ? "Verifying..." : "Verify OTP"}
                         </Button>
 
+                        {/* Resend OTP Button */}
                         <div className="text-center">
-                            <p className="text-sm text-muted-foreground">
-                                Didn't receive the code?{" "}
-                                <Button
-                                    variant="link"
-                                    disabled={timer > 0}
-                                    onClick={handleResendOtp}
-                                    className={timer > 0 ? "text-muted-foreground" : "text-blue-600"}
-                                >
-                                    {timer > 0 ? `Resend in ${timer}s` : "Resend"}
-                                </Button>
+                            <p className="text-sm text-muted-foreground mb-2">
+                                Didn't receive the code?
                             </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleResendOtp}
+                                disabled={resendLoading || resendTimer > 0 || loading}
+                                className="text-green-600 border-green-500 hover:bg-green-50"
+                            >
+                                {resendLoading ? "Resending..." :
+                                    resendTimer > 0 ? `Resend OTP (${resendTimer}s)` :
+                                        "Resend OTP"}
+                            </Button>
                         </div>
-                    </div>
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="w-full"
+                            onClick={() => navigate("/login")}
+                            disabled={loading}
+                        >
+                            Back to Login
+                        </Button>
+                    </form>
                 </CardContent>
             </Card>
         </div>

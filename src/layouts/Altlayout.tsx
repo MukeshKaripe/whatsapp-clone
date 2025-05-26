@@ -22,11 +22,11 @@ const HomeLayoutAlt = () => {
         return false;
     });
 
-    useEffect(() => {
-        if (!user) {
-            navigate("/login");
-        }
-    }, [user, navigate]);
+    // useEffect(() => {
+    //     if (!user) {
+    //         navigate("/login");
+    //     }
+    // }, [user, navigate]);
 
     useEffect(() => {
         const root = document.documentElement;
