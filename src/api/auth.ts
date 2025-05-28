@@ -82,9 +82,6 @@ export const verifyOtpApi = async (otp: string) => {
             }
         );
 
-        // Clear sessionId after successful verification
-        localStorage.removeItem("sessionid");
-
         return {
             success: true,
             user: response.data.user,
@@ -133,7 +130,7 @@ export const updateProfile = async (userId: string, formData: FormData) => {
     try {
         console.log('🔄 Updating profile for user:', userId);
 
-        const response = await fetch(`${API_BASE_URL}/users/updateprofile/${userId}`, {
+        const response = await fetch(`${API_BASE_URL}/api/users/updateprofile/${userId}`, {
             method: 'PUT',
             credentials: 'include', // This sends cookies automatically
             body: formData,
