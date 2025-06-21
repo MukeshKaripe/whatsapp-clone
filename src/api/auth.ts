@@ -154,3 +154,36 @@ export const updateProfile = async (userId: string, formData: FormData) => {
         throw new Error(error.message || 'Failed to update profile');
     }
 };
+// updateUserName
+export const updateUserName = async (userId: string, name: string, about?: string) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/users/updateuser/${userId}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name.trim(),
+                about: about?.trim() || ''
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to update user info');
+        }
+
+        console.log('✅ User info updated:', data);
+        return {
+            success: true,
+            user: data,
+            message: 'User info updated successfully'
+        };
+
+    } catch (error: any) {
+        console.error('❌ User info update error:', error);
+        throw new Error(error.message || 'Failed to update user info');
+    }
+};

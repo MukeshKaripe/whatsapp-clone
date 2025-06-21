@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useEffect, useState } from "react";
 
 import Login from "../pages/Login";
 import OtpVerification from "../pages/OtpVerification";
@@ -10,9 +11,21 @@ import StatusTab from "../pages/StatusTab";
 import CallsTab from "../pages/CallsTab";
 import ProtectedRoute from "../contexts/ProtectedRoutes";
 
+// Loading component for auth checks
+const AuthLoader = () => (
+    <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <p className="text-muted-foreground">Loading...</p>
+        </div>
+    </div>
+);
+
 // Simple Login Route
 const LoginRoute = () => {
-    const { isAuthenticated, hasSessionId } = useAuth();
+    const { isAuthenticated, hasSessionId, loading } = useAuth();
+
+    if (loading) return <AuthLoader />;
 
     // If already authenticated, redirect to home
     if (isAuthenticated) {
@@ -33,7 +46,9 @@ const LoginRoute = () => {
 
 // Simple OTP Route
 const OtpRoute = () => {
-    const { isAuthenticated, hasSessionId, phoneNumber } = useAuth();
+    const { isAuthenticated, hasSessionId, phoneNumber, loading } = useAuth();
+
+    if (loading) return <AuthLoader />;
 
     // If already authenticated, redirect to home
     if (isAuthenticated) {
@@ -52,36 +67,77 @@ const OtpRoute = () => {
     return <OtpVerification />;
 };
 
-// Simple Profile Setup Route
-const ProfileRoute = () => {
-    const { isAuthenticated, user } = useAuth();
+// Profile Setup Route with better auth check
+// const ProfileRoute = () => {
+//     const { isAuthenticated, user, loading, checkAuthStatus } = useAuth();
+//     const [authChecked, setAuthChecked] = useState(false);
 
-    // If not authenticated, redirect to login
-    if (!isAuthenticated) {
-        console.log("❌ Not authenticated, redirecting to login from profile setup");
-        return <Navigate to="/login" replace />;
-    }
+//     useEffect(() => {
+//         const verifyAuth = async () => {
+//             if (!authChecked && !loading) {
+//                 try {
+//                     await checkAuthStatus();
+//                 } catch (error) {
+//                     console.error("Auth check failed:", error);
+//                 } finally {
+//                     setAuthChecked(true);
+//                 }
+//             }
+//         };
+//         verifyAuth();
+//     }, [checkAuthStatus, authChecked, loading]);
 
-    // If user profile is complete, redirect to home
-    if (user && user.name && user.name.trim()) {
-        console.log("✅ Profile complete, redirecting to home");
-        return <Navigate to="/" replace />;
-    }
+//     if (loading || !authChecked) return <AuthLoader />;
 
-    // Show profile setup
-    console.log("📝 Showing profile setup page");
-    return <ProfileSetup />;
-};
+//     // If not authenticated, redirect to login
+//     if (!isAuthenticated) {
+//         console.log("❌ Not authenticated, redirecting to login from profile setup");
+//         return <Navigate to="/login" replace />;
+//     }
 
-// Simple Root Route
+//     // If user profile is complete, redirect to home
+//     if (user && user.name && user.name.trim()) {
+//         console.log("✅ Profile complete, redirecting to home");
+//         return <Navigate to="/" replace />;
+//     }
+
+//     // Show profile setup
+//     console.log("📝 Showing profile setup page");
+//     return <ProfileSetup />;
+// };
+
+// Root Route with enhanced auth verification
 const RootRoute = () => {
-    const { isAuthenticated, hasSessionId, user } = useAuth();
+    const { isAuthenticated, hasSessionId, user, loading, checkAuthStatus } = useAuth();
+    const [authChecked, setAuthChecked] = useState(false);
+
+    useEffect(() => {
+        const verifyAuth = async () => {
+            if (!authChecked && !loading) {
+                try {
+                    console.log("🔍 Verifying authentication status...");
+                    await checkAuthStatus();
+                } catch (error) {
+                    console.error("Auth verification failed:", error);
+                } finally {
+                    setAuthChecked(true);
+                }
+            }
+        };
+        verifyAuth();
+    }, [checkAuthStatus, authChecked, loading]);
+
+    // Show loading while checking auth
+    if (loading || !authChecked) {
+        return <AuthLoader />;
+    }
 
     console.log("🏠 Root route - Auth state:", {
         isAuthenticated,
         hasSessionId,
         hasUser: !!user,
-        userName: user?.name
+        userName: user?.name,
+        authChecked
     });
 
     // If not authenticated
@@ -116,9 +172,9 @@ const AppRoutes = () => {
         <Routes>
             <Route path="/login" element={<LoginRoute />} />
             <Route path="/otp-verification" element={<OtpRoute />} />
-            <Route path="/profile-setup" element={<ProfileRoute />} />
 
             <Route path="/" element={<RootRoute />}>
+                <Route path="/profile-setup" element={<ProfileSetup />} />
                 <Route index element={<Navigate to="chats" replace />} />
                 <Route path="chats" element={<ChatsTab />} />
                 <Route path="status" element={<StatusTab />} />

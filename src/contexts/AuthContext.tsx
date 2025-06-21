@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { verifyOtpApi, logoutApi, updateProfile } from "../api/auth";
+import { verifyOtpApi, logoutApi, updateProfile, updateUserName } from "../api/auth";
 
 interface User {
     _id: string;
@@ -21,6 +21,7 @@ interface AuthContextType {
     loading: boolean;
     hasSessionId: boolean;
     updateUserProfile: (formData: FormData) => Promise<boolean>;
+    updateUserNameApi: (name: string, about?: string) => Promise<boolean>;
     checkAuthStatus: () => Promise<boolean>;
     isRecentlyAuthenticated: boolean;
 }
@@ -228,7 +229,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         }
     };
+    const updateUserNameApi = async (name: string, about?: string): Promise<boolean> => {
+        try {
+            if (!user?._id) {
+                throw new Error('User ID not found');
+            }
 
+            setLoading(true);
+            console.log("🔄 Updating user name and about...");
+            const result = await updateUserName(user._id, name, about);
+
+            if (result.success && result.user) {
+                const updatedUser = {
+                    ...user,
+                    ...result.user,
+                };
+
+                setUser(updatedUser);
+                console.log("✅ User name updated successfully:", updatedUser);
+
+                // Update localStorage with new user data
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+
+                return true;
+            }
+
+            console.log("❌ User name update failed:", result);
+            return false;
+        } catch (error: any) {
+            console.error('❌ User name update failed:', error);
+            throw error;
+        } finally {
+            setLoading(false);
+        }
+    };
     // Helper function to update hasSessionId when sessionId changes
     const updateSessionStatus = () => {
         const sessionId = localStorage.getItem("sessionid");
@@ -253,6 +287,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             hasSessionId,
             updateUserProfile,
             checkAuthStatus,
+            updateUserNameApi,
             isRecentlyAuthenticated
         }}>
             {children}
