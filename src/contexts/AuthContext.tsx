@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { verifyOtpApi, logoutApi, updateProfile, updateUserName } from "../api/auth";
 
 interface User {
@@ -30,26 +30,40 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(() => {
-        // Try to get user from localStorage on initialization
         const savedUser = localStorage.getItem("user");
         return savedUser ? JSON.parse(savedUser) : null;
     });
+
     const [phoneNumber, setPhoneNumber] = useState<string>("");
     const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-        // Initialize based on whether we have user data
         return !!localStorage.getItem("user");
     });
     const [loading, setLoading] = useState<boolean>(false);
     const [isRecentlyAuthenticated, setIsRecentlyAuthenticated] = useState<boolean>(false);
-
-    // Check sessionId from localStorage on initialization
     const [hasSessionId, setHasSessionId] = useState<boolean>(() => {
         return !!localStorage.getItem("sessionid");
     });
 
-    // Simple auth check - just verify if cookie exists and is valid
-    const checkAuthStatus = async (): Promise<boolean> => {
+    // Use refs to prevent duplicate API calls
+    const authCheckInProgress = useRef(false);
+    const authCheckCompleted = useRef(false);
+
+    // Memoized auth check function to prevent recreation
+    const checkAuthStatus = useCallback(async (): Promise<boolean> => {
+        // Prevent duplicate calls
+        if (authCheckInProgress.current) {
+            console.log("🔍 Auth check already in progress, skipping...");
+            return isAuthenticated;
+        }
+
+        // If we've already checked and user is recently authenticated, skip
+        if (authCheckCompleted.current && (isRecentlyAuthenticated || isAuthenticated)) {
+            console.log("✅ Auth already verified, skipping check");
+            return isAuthenticated;
+        }
+
         try {
+            authCheckInProgress.current = true;
             setLoading(true);
             console.log("🔍 Checking authentication status via cookie...");
 
@@ -57,7 +71,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Using getAllUsers endpoint as a way to verify auth
             const response = await fetch('/api/user/', {
                 method: 'GET',
-                credentials: 'include', // Important: Include cookies
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 }
@@ -66,50 +80,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("📋 Auth check response status:", response.status);
 
             if (response.ok) {
-                // If we can successfully call protected endpoint, we're authenticated
                 console.log("✅ Cookie authentication valid");
 
-                // If we have stored user data, keep using it
                 const storedUser = localStorage.getItem("user");
-                if (storedUser) {
+                if (storedUser && !user) {
                     const userData = JSON.parse(storedUser);
                     setUser(userData);
                     setIsAuthenticated(true);
                     console.log("✅ Using stored user data:", userData);
-                    return true;
                 }
 
-                // If no stored user but auth is valid, we need user data
-                // For now, keep current auth state if recently authenticated
-                if (isRecentlyAuthenticated) {
-                    console.log("✅ Recently authenticated, maintaining auth state");
-                    return true;
-                }
-
-                console.log("⚠️ Auth valid but no user data available");
-                return true; // Still authenticated, just no user details
+                authCheckCompleted.current = true;
+                return true;
             } else {
                 console.log("❌ Cookie authentication failed, status:", response.status);
                 setIsAuthenticated(false);
                 setUser(null);
                 localStorage.removeItem("user");
+                authCheckCompleted.current = true;
                 return false;
             }
         } catch (err: any) {
             console.log("❌ Auth check failed with error:", err.message);
 
-            // Don't clear auth if recently authenticated (network might be down)
             if (!isRecentlyAuthenticated) {
                 setIsAuthenticated(false);
                 setUser(null);
                 localStorage.removeItem("user");
             }
+            authCheckCompleted.current = true;
             return false;
         } finally {
+            authCheckInProgress.current = false;
             setLoading(false);
             console.log("✅ Auth check completed");
         }
-    };
+    }, [isAuthenticated, isRecentlyAuthenticated, user]);
+
+    // Initial auth check on mount
+    useEffect(() => {
+        const initialAuthCheck = async () => {
+            // Only check if we have stored user data but haven't verified yet
+            const storedUser = localStorage.getItem("user");
+            if (storedUser && !authCheckCompleted.current && !isRecentlyAuthenticated) {
+                console.log("🔍 Initial auth check on mount...");
+                await checkAuthStatus();
+            } else if (!storedUser) {
+                authCheckCompleted.current = true;
+            }
+        };
+
+        initialAuthCheck();
+    }, []); // Run only once on mount
 
     const verifyOtp = async (otp: string): Promise<{ success: boolean; user?: User; message?: string }> => {
         try {
@@ -120,16 +142,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("✅ OTP verification result:", result);
 
             if (result.success && result.user) {
-                // Set user and authentication state
                 setUser(result.user);
                 setIsAuthenticated(true);
                 setHasSessionId(false);
                 setIsRecentlyAuthenticated(true);
+                authCheckCompleted.current = true; // Mark as completed
 
-                // Clear session ID from localStorage since we're now authenticated via cookie
                 localStorage.removeItem("sessionid");
-
-                // Store user data in localStorage for persistence
                 localStorage.setItem("user", JSON.stringify(result.user));
 
                 console.log("✅ OTP verified, user logged in:", result.user);
@@ -161,10 +180,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsAuthenticated(true);
         setHasSessionId(false);
         setIsRecentlyAuthenticated(true);
+        authCheckCompleted.current = true; // Mark as completed
         localStorage.removeItem("sessionid");
         localStorage.setItem("user", JSON.stringify(userData));
 
-        // Clear the recently authenticated flag after 10 seconds
         setTimeout(() => {
             setIsRecentlyAuthenticated(false);
         }, 10000);
@@ -175,20 +194,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(true);
             console.log("🚪 Logging out...");
 
-            // Call logout API to clear cookie
             await logoutApi();
             console.log("✅ Logout API called successfully");
         } catch (err) {
             console.error("❌ Logout API error:", err);
         } finally {
-            // Clear all local state and storage
+            // Reset all state
             setUser(null);
             setIsAuthenticated(false);
             setHasSessionId(false);
             setIsRecentlyAuthenticated(false);
+            authCheckInProgress.current = false;
+            authCheckCompleted.current = false;
+
             localStorage.removeItem("sessionid");
             localStorage.removeItem("user");
-            localStorage.removeItem("token"); // Remove if any
+            localStorage.removeItem("token");
             setLoading(false);
             console.log("✅ User logged out locally");
         }
@@ -213,10 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 setUser(updatedUser);
                 console.log("✅ Profile updated successfully:", updatedUser);
-
-                // Update localStorage with new user data
                 localStorage.setItem('user', JSON.stringify(updatedUser));
-
                 return true;
             }
 
@@ -229,6 +247,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         }
     };
+
     const updateUserNameApi = async (name: string, about?: string): Promise<boolean> => {
         try {
             if (!user?._id) {
@@ -247,10 +266,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 setUser(updatedUser);
                 console.log("✅ User name updated successfully:", updatedUser);
-
-                // Update localStorage with new user data
                 localStorage.setItem('user', JSON.stringify(updatedUser));
-
                 return true;
             }
 
@@ -263,15 +279,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setLoading(false);
         }
     };
-    // Helper function to update hasSessionId when sessionId changes
-    const updateSessionStatus = () => {
+
+    // Update hasSessionId when phoneNumber changes
+    useEffect(() => {
         const sessionId = localStorage.getItem("sessionid");
         setHasSessionId(!!sessionId);
-    };
-
-    // Update hasSessionId when phoneNumber changes (like after sendOtp)
-    useEffect(() => {
-        updateSessionStatus();
     }, [phoneNumber]);
 
     return (
