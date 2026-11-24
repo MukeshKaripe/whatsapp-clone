@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Production build outputs & compiler artifacts
+dist/
+build/
+server/dist/
+client/dist/
+*.tsbuildinfo
+
+# Environment variables & secrets (NEVER commit to version control)
+.env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
+server/.env.*.local
+client/.env
+client/.env.local
+client/.env.*.local
+
+# Server dynamic uploads (preserve folder structure with .gitkeep)
+server/uploads/*
+!server/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+# Temporary test scripts
+test-*.js
+server/test-*.js
+client/test-*.js
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE & OS specific files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database / SQLite local scratch files
+dev.db
+*.sqlite

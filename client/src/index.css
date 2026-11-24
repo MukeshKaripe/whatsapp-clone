@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --wa-bg: #efeae2;
+    --wa-panel: #f0f2f5;
+    --wa-surface: #ffffff;
+    --wa-subtle: #f7f8fa;
+    --wa-hover: #f5f6f6;
+    --wa-active: #ebebeb;
+    --wa-border: #e9edef;
+    --wa-input: #ffffff;
+    --wa-primary: #111b21;
+    --wa-secondary: #667781;
+    --wa-incoming: #ffffff;
+    --wa-outgoing: #d9fdd3;
+    --wa-dropdown: #ffffff;
+  }
+
+  .dark {
+    --wa-bg: #111b21;
+    --wa-panel: #202c33;
+    --wa-surface: #111b21;
+    --wa-subtle: #182229;
+    --wa-hover: #202c33;
+    --wa-active: #2a3942;
+    --wa-border: #222d34;
+    --wa-input: #2a3942;
+    --wa-primary: #e9edef;
+    --wa-secondary: #8696a0;
+    --wa-incoming: #202c33;
+    --wa-outgoing: #005c4b;
+    --wa-dropdown: #233138;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, 'Lucida Grande', Arial, Ubuntu, Cantarell, 'Fira Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--wa-bg);
+    color: var(--wa-primary);
+  }
+}
+
+/* Custom WhatsApp thin scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* WhatsApp chat background doodle pattern */
+.whatsapp-chat-bg {
+  background-color: #efeae2;
+  background-image: radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    radial-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+.dark .whatsapp-chat-bg {
+  background-color: #0b141a;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
